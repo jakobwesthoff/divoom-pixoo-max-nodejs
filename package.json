@@ -1,0 +1,19 @@
+{
+  "name": "pixoo-max",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/serialport": "^8.0.2",
+    "typescript": "^4.5.4"
+  },
+  "dependencies": {
+    "@serialport/stream": "^9.2.4",
+    "serialport": "^9.2.8"
+  }
+}
