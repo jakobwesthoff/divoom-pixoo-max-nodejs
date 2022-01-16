@@ -12,22 +12,24 @@ export class Canvas {
     this.transformByRowAndColumn(() => [0, 0, 0]);
   }
 
-  public traverseByRowAndColumn(fn: (x: number, y: number, color: RgbColor) => void) {
+  public traverseByRowAndColumn(
+    fn: (x: number, y: number, color: RgbColor, index: number) => void
+  ) {
     for (let y = 0; y < Canvas.HEIGHT; y++) {
       for (let x = 0; x < Canvas.WIDTH; x++) {
-        fn(x, y, this.pixels[y * Canvas.WIDTH + x]);
+        const index = y * Canvas.WIDTH + x;
+        fn(x, y, this.pixels[index], index);
       }
     }
   }
 
-  public transformByRowAndColumn(fn: (x: number, y: number, color: RgbColor) => RgbColor) {
+  public transformByRowAndColumn(
+    fn: (x: number, y: number, color: RgbColor, index: number) => RgbColor
+  ) {
     for (let y = 0; y < Canvas.HEIGHT; y++) {
       for (let x = 0; x < Canvas.WIDTH; x++) {
-        this.pixels[y * Canvas.WIDTH + x] = fn(
-          x,
-          y,
-          this.pixels[y * Canvas.WIDTH + x]
-        );
+        const index = y * Canvas.WIDTH + x;
+        this.pixels[index] = fn(x, y, this.pixels[index], index);
       }
     }
   }

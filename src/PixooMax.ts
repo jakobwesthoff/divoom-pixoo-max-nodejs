@@ -56,6 +56,7 @@ export class PixooMax {
 
     const { colorBuffer, screenBuffer, colorCount } = this.encodeCanvasToFrame(canvas);
     const paletteCount = UInt16LE(colorCount);
+    console.log("colorCount", colorCount);
 
     const frameSize = UInt16LE(
       /* frameSize itself */ 2 +
@@ -116,12 +117,9 @@ export class PixooMax {
       colorBuffer.writeUInt8(color[2], index * 3 + 2);
     });
 
-    const referenceBitLength = Math.ceil(Math.log2(palette.length));
-    if (referenceBitLength === 0) {
-      throw new Error(
-        `The palette reference bit size is 0. This should not happen if at least one color is defined.`
-      );
-    }
+    // Calculate how many bits are needed to fit all the palette values in
+    // log(1) === 0. Therefore we clamp to [1,..]
+    const referenceBitLength = Math.max(1, Math.ceil(Math.log2(palette.length)));
 
     let screenBuffer = Buffer.alloc(
       Math.ceil((referenceBitLength * screen.length) / 8)
@@ -130,36 +128,26 @@ export class PixooMax {
     // Ordering of segments is Little endion
     let bufferIndex = 0;
     let current = 0;
-    let usedBits = 0;
+    let currentIndex = 0;
 
     screen.forEach((paletteIndex) => {
+      // Add the new color reference to the accumulator
       const reference = paletteIndex & (Math.pow(2, referenceBitLength) - 1);
-      const leftBits = 8 - usedBits;
-      let overflowBits = Math.max(0, referenceBitLength - leftBits);
-      current = current | ((reference << usedBits) & 0xff);
-      usedBits += referenceBitLength - overflowBits;
-      while (usedBits === 8 || overflowBits > 0) {
-        if (usedBits === 8) {
-          // Add the byte and reset state
-          screenBuffer.writeUInt8(current, bufferIndex);
-          bufferIndex++;
-          current = 0;
-          usedBits = 0;
-        }
+      current = current | (reference << currentIndex);
+      currentIndex += referenceBitLength;
 
-        if (overflowBits > 0) {
-          // We had an overflow and need to preserve the overflow
-          current =
-            current |
-            ((reference >> (-1 * (overflowBits - referenceBitLength))) & 0xff);
-          overflowBits = Math.max(0, overflowBits - 8);
-          usedBits = Math.min(8, overflowBits);
-        }
+      // Write out all filled up bytes
+      while (currentIndex >= 8) {
+        const lastByte = current & 0xff;
+        current = current >> 8;
+        currentIndex -= 8;
+        screenBuffer.writeUInt8(lastByte, bufferIndex);
+        bufferIndex++;
       }
     });
 
     // Add the last byte
-    if (usedBits != 0) {
+    if (currentIndex !== 0) {
       screenBuffer.writeUInt8(current, bufferIndex);
     }
 

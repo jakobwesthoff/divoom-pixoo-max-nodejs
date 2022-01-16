@@ -1,5 +1,7 @@
 import { BluetoothSerialPort } from "node-bluetooth-serial-port";
+import { off } from "process";
 import { Canvas, RgbColor } from "./src/Canvas";
+import { hslToRgb } from "./src/colorutils";
 import { PixooMax } from "./src/PixooMax";
 
 function delay(timeout: number): Promise<void> {
@@ -10,7 +12,8 @@ async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
   await new Promise<void>((resolve, reject) =>
     bt.write(data, (error?: Error) => (error ? reject(error) : resolve()))
   );
-  console.log("<<<", data.toString("hex"));
+  // console.log("<<<", data.toString("hex"));
+  console.log("<<<", data);
 }
 
 // function encodeAnimationFrame(image: Buffer): Buffer {
@@ -105,41 +108,36 @@ async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
 
     const pixoo = new PixooMax();
 
-    let iteration = 0;
-    while (true) {
-      const canvas = new Canvas();
-      const colors: RgbColor[] = [
-        [255, 255, 255],
-        // [0, 0, 0],
-        // [255, 0, 0],
-        // [0, 255, 0],
-        // [0, 0, 255],
-        // [255, 255, 0],
-        [255, 0, 255],
-        // [0, 255, 255],
-      ];
-      // let currentColor = iteration++ % colors.length;
-      let currentColor = 0;
-      let index = 0;
+    let colorCount = 1024;
+    const canvas = new Canvas();
 
-      canvas.transformByRowAndColumn((_x, _y, color) => {
-        if (index > iteration) {
-          return color;
+    let offset = 0;
+    while (true) {
+      canvas.transformByRowAndColumn((x, y, _color, index) => {
+        if (
+          x === 0 ||
+          // x === 1 ||
+          x === 31 ||
+          // x === 30 ||
+          y === 0 ||
+          // y === 1 ||
+          y === 31 // ||
+          // y === 30
+        ) {
+          return [0, 0, 0];
         }
 
-        let newColor = currentColor;
-        currentColor = (currentColor + 1) % colors.length;
-
-        index++;
-
-        return colors[newColor];
+        const offsettedIndex = (index + offset) % colorCount;
+        return hslToRgb(offsettedIndex / colorCount, 1, 0.5) as RgbColor;
       });
 
-      await sendRaw(bt, pixoo.setBrightness(iteration % 100));
-      await sendRaw(bt, pixoo.setStaticImage(canvas));
 
-      iteration++;
+      // await sendRaw(bt, pixoo.setBrightness(100));
+      const raw = pixoo.setStaticImage(canvas);
+      console.log(raw.length);
+      await sendRaw(bt, raw);
       await delay(16);
+      offset += 3;
     }
 
     // ANIMATION TRYOUT
