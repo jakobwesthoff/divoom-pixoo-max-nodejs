@@ -122,7 +122,7 @@ async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
       let currentColor = 0;
       let index = 0;
 
-      canvas.transform((_x, _y, color) => {
+      canvas.transformByRowAndColumn((_x, _y, color) => {
         if (index > iteration) {
           return color;
         }
