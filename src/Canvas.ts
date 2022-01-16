@@ -13,56 +13,56 @@ export type ImageData = {
   imageBufferSizeLE: Buffer;
 };
 
-export class Grid {
+export class Canvas {
   public static WIDTH = 32;
   public static HEIGHT = 32;
 
   private pixels: RgbColor[] = [];
 
   public constructor() {
-    this.map(() => [0, 0, 0]);
+    this.transform(() => [0, 0, 0]);
   }
 
   public forEach(fn: (x: number, y: number, color: RgbColor) => void) {
-    for (let y = 0; y < Grid.HEIGHT; y++) {
-      for (let x = 0; x < Grid.WIDTH; x++) {
-        fn(x, y, this.pixels[y * Grid.WIDTH + x]);
+    for (let y = 0; y < Canvas.HEIGHT; y++) {
+      for (let x = 0; x < Canvas.WIDTH; x++) {
+        fn(x, y, this.pixels[y * Canvas.WIDTH + x]);
       }
     }
   }
 
-  public map(fn: (x: number, y: number, color: RgbColor) => RgbColor) {
-    for (let y = 0; y < Grid.HEIGHT; y++) {
-      for (let x = 0; x < Grid.WIDTH; x++) {
-        this.pixels[y * Grid.WIDTH + x] = fn(
+  public transform(fn: (x: number, y: number, color: RgbColor) => RgbColor) {
+    for (let y = 0; y < Canvas.HEIGHT; y++) {
+      for (let x = 0; x < Canvas.WIDTH; x++) {
+        this.pixels[y * Canvas.WIDTH + x] = fn(
           x,
           y,
-          this.pixels[y * Grid.WIDTH + x]
+          this.pixels[y * Canvas.WIDTH + x]
         );
       }
     }
   }
 
   private assertBounds(x: number, y: number) {
-    if (x < 0 || x > Grid.WIDTH) {
-      throw new Error(`x coordinate out of bounds: ${x} > ${Grid.WIDTH}`);
+    if (x < 0 || x > Canvas.WIDTH) {
+      throw new Error(`x coordinate out of bounds: ${x} > ${Canvas.WIDTH}`);
     }
 
-    if (y < 0 || y > Grid.HEIGHT) {
-      throw new Error(`y coordinate out of bounds: ${y} > ${Grid.HEIGHT}`);
+    if (y < 0 || y > Canvas.HEIGHT) {
+      throw new Error(`y coordinate out of bounds: ${y} > ${Canvas.HEIGHT}`);
     }
   }
 
   public set(x: number, y: number, color: RgbColor): RgbColor {
     this.assertBounds(x, y);
-    const oldValue = this.pixels[y * Grid.WIDTH + x];
-    this.pixels[y * Grid.WIDTH + x] = color;
+    const oldValue = this.pixels[y * Canvas.WIDTH + x];
+    this.pixels[y * Canvas.WIDTH + x] = color;
     return oldValue;
   }
 
   public get(x: number, y: number): RgbColor {
     this.assertBounds(x, y);
-    return this.pixels[y * Grid.WIDTH + x];
+    return this.pixels[y * Canvas.WIDTH + x];
   }
 
   public toImageData(): ImageData {

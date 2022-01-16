@@ -1,89 +1,48 @@
 import { BluetoothSerialPort } from "node-bluetooth-serial-port";
-import { Grid, RgbColor } from "./src/Grid";
-
-function calculateChecksum(payloadWithLength: Buffer): Buffer {
-  let sum = 0;
-  for (let i = 0; i < payloadWithLength.length; i++) {
-    sum += payloadWithLength[i];
-  }
-  const buffer = Buffer.alloc(2);
-  buffer.writeUInt16LE(sum & 0xffff);
-  return buffer;
-}
-
-function createMessage(payload: Buffer): Buffer {
-  const start = Buffer.alloc(1);
-  start.writeUInt8(0x01);
-  const end = Buffer.alloc(1);
-  end.writeUInt8(0x02);
-  const length = Buffer.alloc(2);
-  length.writeUInt16LE(payload.length + 2 /*checksum*/);
-  const checksum = calculateChecksum(Buffer.concat([length, payload]));
-
-  const msg = Buffer.concat([start, length, payload, checksum, end]);
-  return msg;
-}
+import { Canvas, RgbColor } from "./src/Canvas";
+import { PixooMax } from "./src/PixooMax";
 
 function delay(timeout: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, timeout));
 }
 
-async function sendPayload(
-  bt: BluetoothSerialPort,
-  payload: Buffer
-): Promise<void> {
-  const msg = createMessage(payload);
-
+async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
   await new Promise<void>((resolve, reject) =>
-    bt.write(msg, (error?: Error) => (error ? reject(error) : resolve()))
+    bt.write(data, (error?: Error) => (error ? reject(error) : resolve()))
   );
-  console.log("<<<", msg.toString("hex"));
+  console.log("<<<", data.toString("hex"));
 }
 
-function encodeFrame(grid: Grid): Buffer {
-  const { imageBuffer, paletteSizeLE } = grid.toImageData();
-  const frameSize = Buffer.alloc(2);
-  frameSize.writeUInt16LE(8 + imageBuffer.length);
+// function encodeAnimationFrame(image: Buffer): Buffer {
+//   const lengthBuffer = Buffer.alloc(2);
+//   lengthBuffer.writeUInt16LE(image.length + 3);
+//   return Buffer.concat([Buffer.from([0xaa]), lengthBuffer, image]);
+// }
 
-  return Buffer.concat([
-    Buffer.from([0xaa]),
-    frameSize,
-    Buffer.from([0x00, 0x00, 0x03]),
-    paletteSizeLE,
-    imageBuffer,
-  ]);
-}
+// function encodeAnimationChunk(
+//   encodedFrame: Buffer,
+//   index: number,
+//   chunk: Buffer
+// ): Buffer {
+//   const lengthBuffer = Buffer.alloc(2);
+//   lengthBuffer.writeUInt16LE(encodedFrame.length);
+//   return Buffer.concat([lengthBuffer, Buffer.from([index]), chunk]);
+// }
 
-function encodeAnimationFrame(image: Buffer): Buffer {
-  const lengthBuffer = Buffer.alloc(2);
-  lengthBuffer.writeUInt16LE(image.length + 3);
-  return Buffer.concat([Buffer.from([0xaa]), lengthBuffer, image]);
-}
-
-function encodeAnimationChunk(
-  encodedFrame: Buffer,
-  index: number,
-  chunk: Buffer
-): Buffer {
-  const lengthBuffer = Buffer.alloc(2);
-  lengthBuffer.writeUInt16LE(encodedFrame.length);
-  return Buffer.concat([lengthBuffer, Buffer.from([index]), chunk]);
-}
-
-function createAnimationFrame(
-  timeCode: number,
-  paletteSizeLE: Buffer,
-  imageData: Buffer
-): Buffer {
-  const timeCodeLE = Buffer.alloc(2);
-  timeCodeLE.writeUInt16LE(timeCode);
-  return Buffer.concat([
-    timeCodeLE,
-    Buffer.from([0x00]),
-    paletteSizeLE,
-    imageData,
-  ]);
-}
+// function createAnimationFrame(
+//   timeCode: number,
+//   paletteSizeLE: Buffer,
+//   imageData: Buffer
+// ): Buffer {
+//   const timeCodeLE = Buffer.alloc(2);
+//   timeCodeLE.writeUInt16LE(timeCode);
+//   return Buffer.concat([
+//     timeCodeLE,
+//     Buffer.from([0x00]),
+//     paletteSizeLE,
+//     imageData,
+//   ]);
+// }
 
 (async () => {
   try {
@@ -116,17 +75,6 @@ function createAnimationFrame(
     // DO NOT REMOVE
     await delay(100);
 
-    /*
-     * Brightness Change
-     * Command: 0x74
-     * Args: 0x00 - 0x64 (1 byte) (somehow stepped)
-     */
-    // for (let i = 0; i <= 100; i += 10) {
-    //   await sendPayload(bt, Buffer.from([0x74, i]));
-    //   await delay(250);
-    // }
-    await sendPayload(bt, Buffer.from([0x74, 0x64]));
-
     // Playing with channel switching
     // await sendPayload(bt, Buffer.from([0x74, 0x64]));
     // await delay(1000);
@@ -155,9 +103,11 @@ function createAnimationFrame(
     // await sendPayload(bt, Buffer.from([0x45, 0x07]));
     // await delay(2000);
 
+    const pixoo = new PixooMax();
+
     let iteration = 0;
     while (true) {
-      const grid = new Grid();
+      const canvas = new Canvas();
       const colors: RgbColor[] = [
         [255, 255, 255],
         // [0, 0, 0],
@@ -172,7 +122,7 @@ function createAnimationFrame(
       let currentColor = 0;
       let index = 0;
 
-      grid.map((_x, _y, color) => {
+      canvas.transform((_x, _y, color) => {
         if (index > iteration) {
           return color;
         }
@@ -185,13 +135,8 @@ function createAnimationFrame(
         return colors[newColor];
       });
 
-      await sendPayload(
-        bt,
-        Buffer.concat([
-          Buffer.from([0x44, 0x00, 0x0a, 0x0a, 0x04]),
-          encodeFrame(grid),
-        ])
-      );
+      await sendRaw(bt, pixoo.setBrightness(iteration % 100));
+      await sendRaw(bt, pixoo.setStaticImage(canvas));
 
       iteration++;
       await delay(16);
