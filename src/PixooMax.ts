@@ -1,10 +1,10 @@
 import { Canvas, RgbColor } from "./Canvas";
 
-export type EncodedFrame = {
-  colorCount: number,
-  colorBuffer: Buffer,
-  screenBuffer: Buffer,
-}
+export type PixelData = {
+  colorCount: number;
+  colorBuffer: Buffer;
+  screenBuffer: Buffer;
+};
 
 export const UInt16LE = (...values: number[]): Buffer => {
   const buffer = Buffer.alloc(values.length * 2);
@@ -50,16 +50,45 @@ export class PixooMax {
   public setStaticImage(canvas: Canvas): Buffer {
     const command = UInt8(0x44);
     const prefix = UInt8(0x00, 0x0a, 0x0a, 0x04); // Unknown what this does for now.
-    const header = UInt8(0xaa);
-    const frameTime = UInt16LE(0); // Always 0 vor static image
-    const paletteType = UInt8(0x03); // 3 = Set PixooMax Palette (max. 1024 colors)
 
-    const { colorBuffer, screenBuffer, colorCount } = this.encodeCanvasToFrame(canvas);
+    return this.createMessage(command, prefix, this.encodeFrame(canvas, 0));
+  }
+
+  public setAnimation(canvass: Canvas[], timePerFrame: number): Buffer[] {
+    const frameBuffers = canvass.map((canvas, index) =>
+      this.encodeFrame(canvas, index * timePerFrame)
+    );
+
+    const chunkLength = 200;
+    const allFrames = Buffer.concat(frameBuffers);
+    const chunkCount = Math.ceil(allFrames.length / chunkLength);
+    const chunks: Buffer[] = [];
+    for (let i = 0; i < chunkCount; i++) {
+      chunks.push(
+        Buffer.concat([
+          UInt16LE(allFrames.length),
+          UInt8(i),
+          allFrames.subarray(i * chunkLength, (i + 1) * chunkLength),
+        ])
+      );
+    }
+
+    const command = UInt8(0x49);
+    return chunks.map((chunk) => this.createMessage(command, chunk));
+  }
+
+  private encodeFrame(canvas: Canvas, timecode: number = 0): Buffer {
+    const { screenBuffer, colorBuffer, colorCount } =
+      this.encodeCanvasToPixelData(canvas);
+    const header = UInt8(0xaa);
+    const frameTime = UInt16LE(timecode); // Always 0 vor static image
+    const paletteType = UInt8(0x03); // 3 = Set PixooMax Palette (max. 1024 colors)
     const paletteCount = UInt16LE(colorCount);
-    console.log("colorCount", colorCount);
 
     const frameSize = UInt16LE(
-      /* frameSize itself */ 2 +
+      0 +
+        header.length +
+        /* frameSize itself */ 2 +
         frameTime.length +
         paletteType.length +
         paletteCount.length +
@@ -67,17 +96,15 @@ export class PixooMax {
         screenBuffer.length
     );
 
-    return this.createMessage(
-      command,
-      prefix,
+    return Buffer.concat([
       header,
       frameSize,
       frameTime,
       paletteType,
       paletteCount,
       colorBuffer,
-      screenBuffer
-    );
+      screenBuffer,
+    ]);
   }
 
   private createMessage(...parts: Buffer[]): Buffer {
@@ -89,7 +116,7 @@ export class PixooMax {
     return Buffer.concat([start, length, payload, checksum, end]);
   }
 
-  public encodeCanvasToFrame(canvas: Canvas): EncodedFrame {
+  public encodeCanvasToPixelData(canvas: Canvas): PixelData {
     const palette: RgbColor[] = [];
     const paletteIndexMap = new Map<string, number>();
     const screen: number[] = [];
@@ -119,7 +146,10 @@ export class PixooMax {
 
     // Calculate how many bits are needed to fit all the palette values in
     // log(1) === 0. Therefore we clamp to [1,..]
-    const referenceBitLength = Math.max(1, Math.ceil(Math.log2(palette.length)));
+    const referenceBitLength = Math.max(
+      1,
+      Math.ceil(Math.log2(palette.length))
+    );
 
     let screenBuffer = Buffer.alloc(
       Math.ceil((referenceBitLength * screen.length) / 8)
@@ -155,6 +185,6 @@ export class PixooMax {
       colorBuffer,
       screenBuffer,
       colorCount: palette.length,
-    }
+    };
   }
 }

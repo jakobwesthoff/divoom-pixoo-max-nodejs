@@ -8,6 +8,12 @@ export class Canvas {
 
   private pixels: RgbColor[] = [];
 
+  private static fromFlatPixelArray(flatPixels: RgbColor[]) {
+    const canvas = new Canvas();
+    canvas.pixels = flatPixels;
+    return canvas;
+  }
+
   public constructor() {
     this.transformByRowAndColumn(() => [0, 0, 0]);
   }
@@ -32,6 +38,10 @@ export class Canvas {
         this.pixels[index] = fn(x, y, this.pixels[index], index);
       }
     }
+  }
+
+  public clone(): Canvas {
+    return Canvas.fromFlatPixelArray(this.pixels);
   }
 
   private assertBounds(x: number, y: number) {

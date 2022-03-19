@@ -111,8 +111,8 @@ async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
     let colorCount = 1024;
     const canvas = new Canvas();
 
-    let offset = 0;
-    while (true) {
+    const frames = [];
+    for (let n = 0; n < 8; n++) {
       canvas.transformByRowAndColumn((x, y, _color, index) => {
         if (
           x === 0 ||
@@ -127,17 +127,18 @@ async function sendRaw(bt: BluetoothSerialPort, data: Buffer): Promise<void> {
           return [0, 0, 0];
         }
 
-        const offsettedIndex = (index + offset) % colorCount;
+        const offsettedIndex = ((index % 8) + n * 32) % colorCount;
         return hslToRgb(offsettedIndex / colorCount, 1, 0.5) as RgbColor;
       });
 
+      frames.push(canvas.clone());
+    }
 
-      // await sendRaw(bt, pixoo.setBrightness(100));
-      const raw = pixoo.setStaticImage(canvas);
-      console.log(raw.length);
-      await sendRaw(bt, raw);
-      await delay(16);
-      offset += 3;
+    // await sendRaw(bt, pixoo.setBrightness(100));
+    const chunks = pixoo.setAnimation(frames, 250);
+    for (let chunk of chunks) {
+      await sendRaw(bt, chunk);
+      await delay(10);
     }
 
     // ANIMATION TRYOUT
